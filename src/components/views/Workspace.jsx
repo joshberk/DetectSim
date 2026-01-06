@@ -17,6 +17,7 @@ import {
   AlertCircle,
   CheckCircle,
   ExternalLink,
+  ArrowRight,
 } from 'lucide-react';
 import { useGame } from '../../context/GameContext';
 import { useScenario, useDetection } from '../../hooks';
@@ -33,6 +34,8 @@ export const Workspace = () => {
     exitScenario,
     getHintContent,
     purchaseHint,
+    getNextScenario,
+    goToNextScenario,
   } = useScenario();
 
   const { results, feedback, isRunning, executeDetection, isCompleted } =
@@ -358,22 +361,48 @@ export const Workspace = () => {
                 }
               `}
             >
-              <div className="flex items-start gap-3">
-                {feedback.type === 'error' && (
-                  <Bug className="mt-1 flex-shrink-0 text-red-500" />
-                )}
-                {feedback.type === 'warning' && (
-                  <AlertCircle className="mt-1 flex-shrink-0 text-yellow-500" />
-                )}
-                {feedback.type === 'success' && (
-                  <CheckCircle className="mt-1 flex-shrink-0 text-emerald-500" />
-                )}
-                <div>
-                  <h4 className="font-bold mb-1 uppercase text-xs tracking-wider">
-                    {feedback.message}
-                  </h4>
-                  <p className="text-sm opacity-90 font-mono">{feedback.details}</p>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  {feedback.type === 'error' && (
+                    <Bug className="mt-1 flex-shrink-0 text-red-500" />
+                  )}
+                  {feedback.type === 'warning' && (
+                    <AlertCircle className="mt-1 flex-shrink-0 text-yellow-500" />
+                  )}
+                  {feedback.type === 'success' && (
+                    <CheckCircle className="mt-1 flex-shrink-0 text-emerald-500" />
+                  )}
+                  <div>
+                    <h4 className="font-bold mb-1 uppercase text-xs tracking-wider">
+                      {feedback.message}
+                    </h4>
+                    <p className="text-sm opacity-90 font-mono">{feedback.details}</p>
+                  </div>
                 </div>
+
+                {/* Next Scenario Button - only show on success */}
+                {feedback.type === 'success' && (
+                  <div className="flex gap-2 flex-shrink-0">
+                    {getNextScenario() ? (
+                      <Button
+                        onClick={goToNextScenario}
+                        variant="primary"
+                        size="sm"
+                        icon={ArrowRight}
+                      >
+                        Next Scenario
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={exitScenario}
+                        variant="outline"
+                        size="sm"
+                      >
+                        Back to Dashboard
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}

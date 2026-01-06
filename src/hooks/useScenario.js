@@ -10,6 +10,7 @@ import {
   getScenariosByLevel,
   getProgressStats,
   isLevelUnlocked,
+  ALL_SCENARIOS,
 } from '../data/scenarios';
 
 export const useScenario = () => {
@@ -135,6 +136,33 @@ export const useScenario = () => {
     [getHintContent]
   );
 
+  // Get next scenario
+  const getNextScenario = useCallback(() => {
+    if (!currentScenario) return null;
+
+    const currentIndex = ALL_SCENARIOS.findIndex(s => s.id === currentScenario.id);
+    if (currentIndex === -1 || currentIndex >= ALL_SCENARIOS.length - 1) {
+      return null;
+    }
+
+    const nextScenario = ALL_SCENARIOS[currentIndex + 1];
+    // Check if next level is unlocked
+    if (nextScenario && isLevelUnlocked(nextScenario.level, state.completedScenarios)) {
+      return nextScenario;
+    }
+    return null;
+  }, [currentScenario, state.completedScenarios]);
+
+  // Navigate to next scenario
+  const goToNextScenario = useCallback(() => {
+    const next = getNextScenario();
+    if (next) {
+      selectScenario(next.id);
+      return true;
+    }
+    return false;
+  }, [getNextScenario, selectScenario]);
+
   return {
     currentScenario,
     userCode,
@@ -147,6 +175,8 @@ export const useScenario = () => {
     getHintContent,
     purchaseHint,
     applyHintToCode,
+    getNextScenario,
+    goToNextScenario,
     isCompleted: currentScenario
       ? state.completedScenarios.includes(currentScenario.id)
       : false,

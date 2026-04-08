@@ -4,6 +4,7 @@
  * Supports: selection blocks, modifiers, lists, AND/OR/NOT conditions
  */
 
+import { compileRegex } from './RegexEngine';
 import { validateYAMLStructure, validateRegexPattern } from '../utils/validation';
 
 /**
@@ -29,9 +30,13 @@ export const MODIFIERS = {
   startswith: (value, target) => value.toLowerCase().startsWith(target.toLowerCase()),
   exact: (value, target) => value.toLowerCase() === target.toLowerCase(),
   re: (value, pattern) => {
+    const compiled = compileRegex(pattern, 'i');
+    if (!compiled.success) {
+      return false;
+    }
+
     try {
-      const regex = new RegExp(pattern, 'i');
-      return regex.test(value);
+      return compiled.regex.test(value);
     } catch {
       return false;
     }

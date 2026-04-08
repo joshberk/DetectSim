@@ -12,6 +12,7 @@ import {
   isLevelUnlocked,
   ALL_SCENARIOS,
 } from '../data/scenarios';
+import { DEFAULT_STARTER_CODE } from '../data/constants';
 
 export const useScenario = () => {
   const { state, actions } = useGame();
@@ -24,7 +25,7 @@ export const useScenario = () => {
       const scenario = getScenarioById(state.activeScenarioId);
       if (scenario) {
         setCurrentScenario(scenario);
-        setUserCode(scenario.starterCode || '');
+        setUserCode(scenario.starterCode || DEFAULT_STARTER_CODE);
       }
     } else {
       setCurrentScenario(null);

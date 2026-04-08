@@ -24,7 +24,7 @@ export class DetectionEngine {
    * @param {string} logSource - Log source type for field mapping
    * @returns {Object} Detection results
    */
-  evaluate(ast, logs, logSource = 'process_creation') {
+  async evaluate(ast, logs, logSource = 'process_creation') {
     if (!ast || !ast.condition) {
       return {
         success: false,
@@ -42,7 +42,7 @@ export class DetectionEngine {
     const totalMalicious = logs.filter((log) => log.malicious).length;
 
     for (const log of logs) {
-      const detected = this.evaluateCondition(ast.condition, ast, log, fieldMappings);
+      const detected = await this.evaluateCondition(ast.condition, ast, log, fieldMappings);
 
       if (detected) {
         if (log.malicious) {
@@ -105,23 +105,31 @@ export class DetectionEngine {
    * @param {Object} fieldMappings - Field name mappings
    * @returns {boolean} Whether condition matches
    */
-  evaluateCondition(condition, ast, log, fieldMappings) {
+  async evaluateCondition(condition, ast, log, fieldMappings) {
     switch (condition.type) {
       case 'reference':
         return this.evaluateSelection(condition.name, ast, log, fieldMappings);
 
       case 'and':
-        return condition.operands.every((op) =>
-          this.evaluateCondition(op, ast, log, fieldMappings)
-        );
+        for (const operand of condition.operands) {
+          const matches = await this.evaluateCondition(operand, ast, log, fieldMappings);
+          if (!matches) {
+            return false;
+          }
+        }
+        return true;
 
       case 'or':
-        return condition.operands.some((op) =>
-          this.evaluateCondition(op, ast, log, fieldMappings)
-        );
+        for (const operand of condition.operands) {
+          const matches = await this.evaluateCondition(operand, ast, log, fieldMappings);
+          if (matches) {
+            return true;
+          }
+        }
+        return false;
 
       case 'not':
-        return !this.evaluateCondition(condition.operand, ast, log, fieldMappings);
+        return !(await this.evaluateCondition(condition.operand, ast, log, fieldMappings));
 
       case 'all_of':
         return this.evaluateAllOf(condition.pattern, ast, log, fieldMappings);
@@ -143,7 +151,7 @@ export class DetectionEngine {
    * @param {Object} fieldMappings - Field mappings
    * @returns {boolean} Whether selection matches
    */
-  evaluateSelection(selectionName, ast, log, fieldMappings) {
+  async evaluateSelection(selectionName, ast, log, fieldMappings) {
     // Check in selections first, then filters
     let filters = ast.selections[selectionName] || ast.filters[selectionName];
 
@@ -153,9 +161,14 @@ export class DetectionEngine {
     }
 
     // All filters in a selection must match (AND logic)
-    return filters.every((filter) =>
-      this.evaluateFilter(filter, log, fieldMappings)
-    );
+    for (const filter of filters) {
+      const matches = await this.evaluateFilter(filter, log, fieldMappings);
+      if (!matches) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   /**
@@ -165,7 +178,7 @@ export class DetectionEngine {
    * @param {Object} fieldMappings - Field mappings
    * @returns {boolean} Whether filter matches
    */
-  evaluateFilter(filter, log, fieldMappings) {
+  async evaluateFilter(filter, log, fieldMappings) {
     const { field, modifier, matchAll, values } = filter;
 
     // Get the actual log field name from mappings
@@ -183,18 +196,32 @@ export class DetectionEngine {
 
     if (matchAll) {
       // ALL values must match
-      return values.every((target) => modifierFn(stringValue, target));
-    } else {
-      // ANY value must match (OR logic within filter)
-      return values.some((target) => {
+      for (const target of values) {
         if (modifier === 're') {
-          // Use safe regex for regex modifiers
-          const result = safeRegexTest(target, stringValue);
-          return result.success && result.matched;
+          const result = await safeRegexTest(target, stringValue);
+          if (!(result.success && result.matched)) {
+            return false;
+          }
+        } else if (!modifierFn(stringValue, target)) {
+          return false;
         }
-        return modifierFn(stringValue, target);
-      });
+      }
+      return true;
     }
+
+    // ANY value must match (OR logic within filter)
+    for (const target of values) {
+      if (modifier === 're') {
+        const result = await safeRegexTest(target, stringValue);
+        if (result.success && result.matched) {
+          return true;
+        }
+      } else if (modifierFn(stringValue, target)) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /**
@@ -242,16 +269,21 @@ export class DetectionEngine {
    * @param {Object} fieldMappings - Field mappings
    * @returns {boolean} Whether all matching selections match
    */
-  evaluateAllOf(pattern, ast, log, fieldMappings) {
+  async evaluateAllOf(pattern, ast, log, fieldMappings) {
     const matchingSelections = this.findMatchingSelections(pattern, ast);
 
     if (matchingSelections.length === 0) {
       return false;
     }
 
-    return matchingSelections.every((name) =>
-      this.evaluateSelection(name, ast, log, fieldMappings)
-    );
+    for (const name of matchingSelections) {
+      const matches = await this.evaluateSelection(name, ast, log, fieldMappings);
+      if (!matches) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   /**
@@ -262,16 +294,21 @@ export class DetectionEngine {
    * @param {Object} fieldMappings - Field mappings
    * @returns {boolean} Whether any matching selection matches
    */
-  evaluateOneOf(pattern, ast, log, fieldMappings) {
+  async evaluateOneOf(pattern, ast, log, fieldMappings) {
     const matchingSelections = this.findMatchingSelections(pattern, ast);
 
     if (matchingSelections.length === 0) {
       return false;
     }
 
-    return matchingSelections.some((name) =>
-      this.evaluateSelection(name, ast, log, fieldMappings)
-    );
+    for (const name of matchingSelections) {
+      const matches = await this.evaluateSelection(name, ast, log, fieldMappings);
+      if (matches) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /**

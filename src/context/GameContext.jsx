@@ -6,7 +6,15 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
 import { loadGameState, saveGameState, getDefaultGameState } from '../services/storage';
 import { calculateAccuracy, determineRank, calculateLeaderboardScore } from '../utils/scoring';
-import { subscribeToAuthState, signInAnon, isFirebaseConfigured } from '../services/firebase';
+import {
+  subscribeToAuthState,
+  signInAnon,
+  isFirebaseConfigured,
+  loadUserProgress,
+  saveUserProgress,
+  subscribeToLeaderboard,
+  updateLeaderboard,
+} from '../services/firebase';
 
 // Initial state
 const initialState = {
@@ -57,6 +65,20 @@ const ActionTypes = {
   RESET_GAME: 'RESET_GAME',
 };
 
+const buildDerivedState = (gameState) => {
+  const derivedStats = {
+    completedCases: gameState.completedScenarios?.length || 0,
+    accuracy: calculateAccuracy(gameState.statistics || {}),
+    budget: gameState.budget ?? 150,
+  };
+
+  return {
+    rank: determineRank(derivedStats),
+    accuracy: derivedStats.accuracy,
+    leaderboardScore: calculateLeaderboardScore(derivedStats),
+  };
+};
+
 // Reducer
 const gameReducer = (state, action) => {
   switch (action.type) {
@@ -75,33 +97,33 @@ const gameReducer = (state, action) => {
 
     case ActionTypes.LOAD_GAME_STATE: {
       const gameState = action.payload;
-      const stats = {
-        completedCases: gameState.completedScenarios?.length || 0,
-        accuracy: calculateAccuracy(gameState.statistics || {}),
-        budget: gameState.budget || 150,
-      };
+      const derivedState = buildDerivedState(gameState);
 
       return {
         ...state,
-        budget: gameState.budget || 150,
+        budget: gameState.budget ?? 150,
         completedScenarios: gameState.completedScenarios || [],
         scenarioAttempts: gameState.scenarioAttempts || {},
         statistics: gameState.statistics || initialState.statistics,
         purchasedHints: gameState.purchasedHints || [],
-        rank: determineRank(stats),
-        accuracy: stats.accuracy,
-        leaderboardScore: calculateLeaderboardScore(stats),
+        ...derivedState,
       };
     }
 
-    case ActionTypes.UPDATE_BUDGET:
-      return {
+    case ActionTypes.UPDATE_BUDGET: {
+      const nextState = {
         ...state,
         budget: Math.max(0, action.payload),
       };
 
+      return {
+        ...nextState,
+        ...buildDerivedState(nextState),
+      };
+    }
+
     case ActionTypes.COMPLETE_SCENARIO: {
-      const { scenarioId, reward, stats } = action.payload;
+      const { scenarioId, reward } = action.payload;
 
       if (state.completedScenarios.includes(scenarioId)) {
         return state;
@@ -112,46 +134,46 @@ const gameReducer = (state, action) => {
       const newStatistics = {
         ...state.statistics,
         perfectDetections: state.statistics.perfectDetections + 1,
-        truePositives: state.statistics.truePositives + (stats?.truePositives || 0),
       };
 
-      const updatedStats = {
-        completedCases: newCompleted.length,
-        accuracy: calculateAccuracy(newStatistics),
-        budget: newBudget,
-      };
-
-      return {
+      const nextState = {
         ...state,
         budget: newBudget,
         completedScenarios: newCompleted,
         statistics: newStatistics,
-        rank: determineRank(updatedStats),
-        accuracy: updatedStats.accuracy,
-        leaderboardScore: calculateLeaderboardScore(updatedStats),
+      };
+
+      return {
+        ...nextState,
+        ...buildDerivedState(nextState),
       };
     }
 
     case ActionTypes.RECORD_ATTEMPT: {
       const { scenarioId, attempt } = action.payload;
       const attempts = state.scenarioAttempts[scenarioId] || [];
+      const shouldTrackStats = action.payload.trackInStats !== false;
 
       const newStatistics = {
         ...state.statistics,
-        totalAttempts: state.statistics.totalAttempts + 1,
-        truePositives: state.statistics.truePositives + (attempt.truePositives || 0),
-        falsePositives: state.statistics.falsePositives + (attempt.falsePositives || 0),
-        missedAttacks: state.statistics.missedAttacks + (attempt.missedAttacks || 0),
+        totalAttempts: state.statistics.totalAttempts + (shouldTrackStats ? 1 : 0),
+        truePositives: state.statistics.truePositives + (shouldTrackStats ? (attempt.truePositives || 0) : 0),
+        falsePositives: state.statistics.falsePositives + (shouldTrackStats ? (attempt.falsePositives || 0) : 0),
+        missedAttacks: state.statistics.missedAttacks + (shouldTrackStats ? (attempt.missedAttacks || 0) : 0),
       };
 
-      return {
+      const nextState = {
         ...state,
         scenarioAttempts: {
           ...state.scenarioAttempts,
           [scenarioId]: [...attempts, { ...attempt, timestamp: Date.now() }],
         },
         statistics: newStatistics,
-        accuracy: calculateAccuracy(newStatistics),
+      };
+
+      return {
+        ...nextState,
+        ...buildDerivedState(nextState),
       };
     }
 
@@ -163,21 +185,32 @@ const gameReducer = (state, action) => {
         return state;
       }
 
-      return {
+      const nextState = {
         ...state,
         budget: state.budget - cost,
         purchasedHints: [...state.purchasedHints, hintKey],
       };
+
+      return {
+        ...nextState,
+        ...buildDerivedState(nextState),
+      };
     }
 
-    case ActionTypes.UPDATE_STATISTICS:
-      return {
+    case ActionTypes.UPDATE_STATISTICS: {
+      const nextState = {
         ...state,
         statistics: {
           ...state.statistics,
           ...action.payload,
         },
       };
+
+      return {
+        ...nextState,
+        ...buildDerivedState(nextState),
+      };
+    }
 
     case ActionTypes.SET_VIEW:
       return {
@@ -203,6 +236,7 @@ const gameReducer = (state, action) => {
         user: state.user,
         isAuthenticated: state.isAuthenticated,
         isLoading: false,
+        ...buildDerivedState(initialState),
       };
 
     default:
@@ -219,14 +253,29 @@ export const GameProvider = ({ children }) => {
 
   // Initialize authentication
   useEffect(() => {
+    let isMounted = true;
+    let unsubscribe = () => {};
+
     const initAuth = async () => {
       if (isFirebaseConfigured()) {
-        const unsubscribe = subscribeToAuthState((user) => {
+        unsubscribe = subscribeToAuthState(async (user) => {
+          if (!isMounted) {
+            return;
+          }
+
           dispatch({ type: ActionTypes.SET_USER, payload: user });
 
           if (user) {
-            const gameState = loadGameState(user.uid);
+            const gameState =
+              (await loadUserProgress(user.uid)) ||
+              loadGameState(user.uid) ||
+              getDefaultGameState();
+            if (!isMounted) {
+              return;
+            }
             dispatch({ type: ActionTypes.LOAD_GAME_STATE, payload: gameState });
+          } else {
+            dispatch({ type: ActionTypes.LOAD_GAME_STATE, payload: getDefaultGameState() });
           }
 
           dispatch({ type: ActionTypes.SET_LOADING, payload: false });
@@ -234,8 +283,6 @@ export const GameProvider = ({ children }) => {
 
         // Try anonymous sign in
         await signInAnon();
-
-        return unsubscribe;
       } else {
         // Use local storage only
         const gameState = loadGameState('local');
@@ -245,22 +292,30 @@ export const GameProvider = ({ children }) => {
     };
 
     initAuth();
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, []);
 
   // Save state changes to storage
   useEffect(() => {
     if (!state.isLoading) {
-      const userId = state.user?.uid || 'local';
-      saveGameState(
-        {
-          budget: state.budget,
-          completedScenarios: state.completedScenarios,
-          scenarioAttempts: state.scenarioAttempts,
-          statistics: state.statistics,
-          purchasedHints: state.purchasedHints,
-        },
-        userId
-      );
+      const gameState = {
+        budget: state.budget,
+        completedScenarios: state.completedScenarios,
+        scenarioAttempts: state.scenarioAttempts,
+        statistics: state.statistics,
+        purchasedHints: state.purchasedHints,
+      };
+
+      if (isFirebaseConfigured() && state.user?.uid) {
+        saveGameState(gameState, state.user.uid);
+        saveUserProgress(state.user.uid, gameState);
+      } else {
+        saveGameState(gameState, 'local');
+      }
     }
   }, [
     state.budget,
@@ -270,6 +325,37 @@ export const GameProvider = ({ children }) => {
     state.purchasedHints,
     state.isLoading,
     state.user,
+  ]);
+
+  useEffect(() => {
+    if (!isFirebaseConfigured()) {
+      return () => {};
+    }
+
+    return subscribeToLeaderboard((entries) => {
+      dispatch({ type: ActionTypes.SET_LEADERBOARD, payload: entries });
+    });
+  }, []);
+
+  useEffect(() => {
+    if (state.isLoading || !isFirebaseConfigured() || !state.user?.uid) {
+      return;
+    }
+
+    updateLeaderboard(state.user.uid, {
+      user: `Operative ${state.user.uid.slice(0, 6)}`,
+      score: state.leaderboardScore,
+      rank: state.rank?.name || 'Junior Analyst',
+      completedCases: state.completedScenarios.length,
+      accuracy: state.accuracy,
+    });
+  }, [
+    state.isLoading,
+    state.user,
+    state.rank,
+    state.leaderboardScore,
+    state.completedScenarios.length,
+    state.accuracy,
   ]);
 
   // Actions
@@ -289,11 +375,15 @@ export const GameProvider = ({ children }) => {
       });
     }, []),
 
-    recordAttempt: useCallback((scenarioId, attempt) => {
+    recordAttempt: useCallback((scenarioId, attempt, trackInStats = true) => {
       dispatch({
         type: ActionTypes.RECORD_ATTEMPT,
-        payload: { scenarioId, attempt },
+        payload: { scenarioId, attempt, trackInStats },
       });
+    }, []),
+
+    setLeaderboard: useCallback((entries) => {
+      dispatch({ type: ActionTypes.SET_LEADERBOARD, payload: entries });
     }, []),
 
     purchaseHint: useCallback((scenarioId, hintIndex, cost) => {

@@ -34,6 +34,7 @@ export const Workspace = () => {
     exitScenario,
     getHintContent,
     purchaseHint,
+    applyHintToCode,
     getNextScenario,
     goToNextScenario,
   } = useScenario();
@@ -76,6 +77,22 @@ export const Workspace = () => {
     if (hint && purchaseHint(index)) {
       // Hint purchased successfully
     }
+  };
+
+  const getVisibleLogFields = (log) => {
+    const excludedFields = new Set([
+      'id',
+      'malicious',
+      'detected',
+      'classification',
+      'severity',
+      'logSource',
+    ]);
+
+    return Object.entries(log).filter(
+      ([field, value]) =>
+        !excludedFields.has(field) && value !== null && value !== undefined
+    );
   };
 
   return (
@@ -227,33 +244,17 @@ export const Workspace = () => {
                         {generateRawLog(log)}
                       </div>
                     ) : (
-                      <div className="grid grid-cols-[80px_1fr] gap-x-2 gap-y-1 text-xs pr-20">
-                        <div className="text-gray-600 text-right">Time</div>
-                        <div className="text-gray-300">{log.timestamp}</div>
-                        <div className="text-gray-600 text-right">Process</div>
-                        <div className="text-blue-400">
-                          {log.image || log.processName}
-                        </div>
-                        {log.commandLine && (
-                          <>
-                            <div className="text-gray-600 text-right">CMD</div>
-                            <div className="text-yellow-100/80 break-all">
-                              {log.commandLine}
+                      <div className="grid grid-cols-[120px_1fr] gap-x-2 gap-y-1 text-xs pr-20">
+                        {getVisibleLogFields(log).map(([field, value]) => (
+                          <React.Fragment key={`${log.id}-${field}`}>
+                            <div className="text-gray-600 text-right">
+                              {field}
                             </div>
-                          </>
-                        )}
-                        {log.user && (
-                          <>
-                            <div className="text-gray-600 text-right">User</div>
-                            <div className="text-purple-300">{log.user}</div>
-                          </>
-                        )}
-                        {log.parentImage && (
-                          <>
-                            <div className="text-gray-600 text-right">Parent</div>
-                            <div className="text-cyan-300">{log.parentImage}</div>
-                          </>
-                        )}
+                            <div className="text-gray-300 break-all">
+                              {String(value)}
+                            </div>
+                          </React.Fragment>
+                        ))}
                       </div>
                     )}
                   </div>
@@ -298,8 +299,19 @@ export const Workspace = () => {
                     className="p-3 bg-[#1e1e1e] rounded border border-[#444]"
                   >
                     {hintData?.isPurchased ? (
-                      <div className="text-sm text-gray-300 font-mono whitespace-pre-wrap">
-                        {hintData.content}
+                      <div className="space-y-3">
+                        <div className="text-sm text-gray-300 font-mono whitespace-pre-wrap">
+                          {hintData.content}
+                        </div>
+                        {hint.isSolution && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => applyHintToCode(index)}
+                          >
+                            Apply to Editor
+                          </Button>
+                        )}
                       </div>
                     ) : (
                       <div className="flex items-center justify-between">

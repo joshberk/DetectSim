@@ -24,7 +24,7 @@ import { DetectionEngine } from './DetectionEngine';
  * @param {string} logSource - Log source type
  * @returns {Object} Detection results
  */
-export const runDetection = (ruleText, logs, logSource = 'process_creation') => {
+export const runDetection = async (ruleText, logs, logSource = 'process_creation') => {
   const parser = new SigmaParser();
   const engine = new DetectionEngine();
 
@@ -41,7 +41,7 @@ export const runDetection = (ruleText, logs, logSource = 'process_creation') => 
   }
 
   // Evaluate against logs
-  const evalResult = engine.evaluate(parseResult.ast, logs, logSource);
+  const evalResult = await engine.evaluate(parseResult.ast, logs, logSource);
 
   if (!evalResult.success) {
     return {

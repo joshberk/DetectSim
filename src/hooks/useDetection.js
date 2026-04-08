@@ -3,19 +3,22 @@
  * Manages detection rule execution and results
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { runDetection } from '../engine';
 import { useGame } from '../context/GameContext';
 import { SCORING } from '../utils/scoring';
+import { checkRateLimit } from '../utils/validation';
+import { RATE_LIMITS } from '../data/constants';
 
 export const useDetection = (scenario) => {
-  const { state, actions } = useGame();
+  const { actions } = useGame();
   const [results, setResults] = useState(null);
   const [feedback, setFeedback] = useState(null);
   const [isRunning, setIsRunning] = useState(false);
+  const rateLimitTracker = useRef({});
 
   const executeDetection = useCallback(
-    (ruleText) => {
+    async (ruleText) => {
       if (!scenario || !scenario.logs) {
         setFeedback({
           type: 'error',
@@ -25,12 +28,27 @@ export const useDetection = (scenario) => {
         return null;
       }
 
+      const rateLimit = checkRateLimit(
+        'detection_submit',
+        rateLimitTracker.current,
+        RATE_LIMITS.DETECTION_SUBMIT
+      );
+
+      if (!rateLimit.allowed) {
+        setFeedback({
+          type: 'warning',
+          message: 'Rate Limit Exceeded',
+          details: `Too many rule deployments. Try again in ${rateLimit.resetIn} second(s).`,
+        });
+        return null;
+      }
+
       setIsRunning(true);
       setFeedback(null);
 
       try {
         // Run detection
-        const result = runDetection(ruleText, scenario.logs, scenario.logSource);
+        const result = await runDetection(ruleText, scenario.logs, scenario.logSource);
 
         if (!result.success) {
           setFeedback({
@@ -52,20 +70,25 @@ export const useDetection = (scenario) => {
         setResults(result.results);
 
         // Record attempt
+        const alreadyCompleted = actions.isScenarioCompleted(scenario.id);
         const attemptCount = actions.getAttemptCount(scenario.id);
         const isFirstTry = attemptCount === 0;
 
-        actions.recordAttempt(scenario.id, {
-          truePositives: result.summary.truePositives,
-          falsePositives: result.summary.falsePositives,
-          missedAttacks: result.summary.missedAttacks,
-          isPerfect: result.isPerfect,
-        });
+        actions.recordAttempt(
+          scenario.id,
+          {
+            truePositives: result.summary.truePositives,
+            falsePositives: result.summary.falsePositives,
+            missedAttacks: result.summary.missedAttacks,
+            isPerfect: result.isPerfect,
+          },
+          !alreadyCompleted
+        );
 
         // Generate feedback and handle scoring
         if (result.isPerfect) {
           // Perfect detection!
-          if (!actions.isScenarioCompleted(scenario.id)) {
+          if (!alreadyCompleted) {
             const baseReward = SCORING.PERFECT_DETECTION;
             const firstTryBonus = isFirstTry ? SCORING.FIRST_TRY_BONUS : 0;
             const totalReward = baseReward + firstTryBonus;

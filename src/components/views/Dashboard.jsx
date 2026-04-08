@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { useGame } from '../../context/GameContext';
 import { useScenario } from '../../hooks';
-import { Card, Badge, ProgressBar, Button } from '../ui';
+import { Card, Badge, ProgressBar } from '../ui';
 import { LEVELS } from '../../data/constants';
 
 export const Dashboard = () => {
@@ -121,7 +121,7 @@ export const Dashboard = () => {
 
                       {/* Scenarios Grid */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {levelConfig.scenarios.slice(0, 6).map((scenario) => (
+                        {levelConfig.scenarios.map((scenario) => (
                           <button
                             key={scenario.id}
                             disabled={!isUnlocked}
@@ -169,15 +169,6 @@ export const Dashboard = () => {
                           </button>
                         ))}
                       </div>
-
-                      {/* Show more */}
-                      {levelConfig.scenarios.length > 6 && (
-                        <div className="text-center">
-                          <span className="text-xs text-gray-500">
-                            +{levelConfig.scenarios.length - 6} more scenarios
-                          </span>
-                        </div>
-                      )}
                     </div>
                   );
                 })}

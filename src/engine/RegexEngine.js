@@ -131,28 +131,81 @@ export const executeRegex = (regex, input, timeout = CONFIG.EXECUTION_TIMEOUT_MS
 
   const startTime = performance.now();
 
-  try {
-    // For simple test operations, we can check inline
-    // Complex patterns should use Web Workers in production
-    const matched = regex.test(input);
-    const duration = performance.now() - startTime;
-
-    if (duration > timeout) {
-      console.warn(`Regex execution took ${duration}ms, which exceeds timeout`);
+  return new Promise((resolve) => {
+    if (typeof Worker === 'undefined' || typeof Blob === 'undefined' || typeof URL === 'undefined') {
+      try {
+        const matched = regex.test(input);
+        resolve({
+          success: true,
+          matched,
+          duration: performance.now() - startTime,
+        });
+      } catch (error) {
+        resolve({
+          success: false,
+          error: `Regex execution error: ${error.message}`,
+          matched: false,
+        });
+      }
+      return;
     }
 
-    return {
-      success: true,
-      matched,
-      duration,
+    const workerScript = `
+      self.onmessage = ({ data }) => {
+        try {
+          const regex = new RegExp(data.source, data.flags);
+          const matched = regex.test(data.input);
+          self.postMessage({ success: true, matched });
+        } catch (error) {
+          self.postMessage({ success: false, error: error.message, matched: false });
+        }
+      };
+    `;
+
+    const blobUrl = URL.createObjectURL(
+      new Blob([workerScript], { type: 'application/javascript' })
+    );
+    const worker = new Worker(blobUrl);
+
+    const cleanup = () => {
+      worker.terminate();
+      URL.revokeObjectURL(blobUrl);
     };
-  } catch (error) {
-    return {
-      success: false,
-      error: `Regex execution error: ${error.message}`,
-      matched: false,
+
+    const timer = setTimeout(() => {
+      cleanup();
+      resolve({
+        success: false,
+        error: `Regex execution timed out after ${timeout}ms`,
+        matched: false,
+      });
+    }, timeout);
+
+    worker.onmessage = ({ data }) => {
+      clearTimeout(timer);
+      cleanup();
+      resolve({
+        ...data,
+        duration: performance.now() - startTime,
+      });
     };
-  }
+
+    worker.onerror = (error) => {
+      clearTimeout(timer);
+      cleanup();
+      resolve({
+        success: false,
+        error: `Regex worker error: ${error.message}`,
+        matched: false,
+      });
+    };
+
+    worker.postMessage({
+      source: regex.source,
+      flags: regex.flags,
+      input,
+    });
+  });
 };
 
 /**
@@ -163,7 +216,7 @@ export const executeRegex = (regex, input, timeout = CONFIG.EXECUTION_TIMEOUT_MS
  * @param {string} flags - Regex flags
  * @returns {Object} Test result
  */
-export const safeRegexTest = (pattern, input, flags = 'i') => {
+export const safeRegexTest = async (pattern, input, flags = 'i') => {
   // Compile
   const compiled = compileRegex(pattern, flags);
   if (!compiled.success) {

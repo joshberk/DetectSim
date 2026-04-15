@@ -8,6 +8,16 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged, signOut } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
 
+// Safe JSON.parse that rejects prototype pollution keys
+const safeJSONParse = (data) => {
+  return JSON.parse(data, (key, value) => {
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+      return undefined;
+    }
+    return value;
+  });
+};
+
 // Firebase configuration from environment variables
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -132,7 +142,7 @@ export const loadUserProgress = async (userId) => {
     // Fall back to localStorage
     try {
       const data = localStorage.getItem(`detectsim_progress_${userId || 'local'}`);
-      return data ? JSON.parse(data) : null;
+      return data ? safeJSONParse(data) : null;
     } catch {
       return null;
     }
@@ -151,7 +161,7 @@ export const loadUserProgress = async (userId) => {
     // Fall back to localStorage
     try {
       const data = localStorage.getItem(`detectsim_progress_${userId}`);
-      return data ? JSON.parse(data) : null;
+      return data ? safeJSONParse(data) : null;
     } catch {
       return null;
     }
@@ -169,7 +179,7 @@ export const subscribeToProgress = (userId, callback) => {
     // Load from localStorage once
     try {
       const data = localStorage.getItem(`detectsim_progress_${userId || 'local'}`);
-      callback(data ? JSON.parse(data) : null);
+      callback(data ? safeJSONParse(data) : null);
     } catch {
       callback(null);
     }

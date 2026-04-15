@@ -54,6 +54,9 @@ export const MODIFIERS = {
   },
   base64: (value, target) => {
     try {
+      if (!/^[A-Za-z0-9+/]*={0,2}$/.test(value)) {
+        return false;
+      }
       const decoded = atob(value);
       return decoded.toLowerCase().includes(target.toLowerCase());
     } catch {

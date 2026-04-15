@@ -39,3 +39,6 @@ coverage/
 
 # Misc
 *.local
+
+# Claude Code workspace config (local dev only)
+.claude/

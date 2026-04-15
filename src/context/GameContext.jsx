@@ -15,6 +15,7 @@ import {
   subscribeToLeaderboard,
   updateLeaderboard,
 } from '../services/firebase';
+import { evaluateAchievements, VALID_ACHIEVEMENT_IDS, ACHIEVEMENTS_BY_ID } from '../data/achievements';
 
 // Initial state
 const initialState = {
@@ -33,8 +34,12 @@ const initialState = {
     falsePositives: 0,
     missedAttacks: 0,
     perfectDetections: 0,
+    firstTryPerfect: 0, // tracked for Speed Runner achievement
   },
   purchasedHints: [],
+
+  // Achievements — only valid IDs from VALID_ACHIEVEMENT_IDS are stored
+  unlockedAchievements: [],
 
   // Computed values
   rank: null,
@@ -63,6 +68,7 @@ const ActionTypes = {
   SET_ACTIVE_SCENARIO: 'SET_ACTIVE_SCENARIO',
   SET_LEADERBOARD: 'SET_LEADERBOARD',
   RESET_GAME: 'RESET_GAME',
+  UNLOCK_ACHIEVEMENTS: 'UNLOCK_ACHIEVEMENTS',
 };
 
 const buildDerivedState = (gameState) => {
@@ -99,13 +105,22 @@ const gameReducer = (state, action) => {
       const gameState = action.payload;
       const derivedState = buildDerivedState(gameState);
 
+      // Security: filter loaded achievement IDs against whitelist
+      const loadedAchievements = (gameState.unlockedAchievements || []).filter(
+        (id) => VALID_ACHIEVEMENT_IDS.has(id)
+      );
+
       return {
         ...state,
         budget: gameState.budget ?? 150,
         completedScenarios: gameState.completedScenarios || [],
         scenarioAttempts: gameState.scenarioAttempts || {},
-        statistics: gameState.statistics || initialState.statistics,
+        statistics: {
+          ...initialState.statistics,
+          ...(gameState.statistics || {}),
+        },
         purchasedHints: gameState.purchasedHints || [],
+        unlockedAchievements: loadedAchievements,
         ...derivedState,
       };
     }
@@ -153,6 +168,10 @@ const gameReducer = (state, action) => {
       const { scenarioId, attempt } = action.payload;
       const attempts = state.scenarioAttempts[scenarioId] || [];
       const shouldTrackStats = action.payload.trackInStats !== false;
+      const isFirstTryPerfect =
+        shouldTrackStats &&
+        attempt.isPerfect &&
+        attempts.length === 0;
 
       const newStatistics = {
         ...state.statistics,
@@ -160,6 +179,7 @@ const gameReducer = (state, action) => {
         truePositives: state.statistics.truePositives + (shouldTrackStats ? (attempt.truePositives || 0) : 0),
         falsePositives: state.statistics.falsePositives + (shouldTrackStats ? (attempt.falsePositives || 0) : 0),
         missedAttacks: state.statistics.missedAttacks + (shouldTrackStats ? (attempt.missedAttacks || 0) : 0),
+        firstTryPerfect: (state.statistics.firstTryPerfect || 0) + (isFirstTryPerfect ? 1 : 0),
       };
 
       const nextState = {
@@ -230,6 +250,22 @@ const gameReducer = (state, action) => {
         leaderboard: action.payload,
       };
 
+    case ActionTypes.UNLOCK_ACHIEVEMENTS: {
+      // Security: validate every incoming ID against whitelist before storing
+      const incoming = (action.payload || []).filter((id) =>
+        VALID_ACHIEVEMENT_IDS.has(id)
+      );
+      if (incoming.length === 0) return state;
+
+      const existing = new Set(state.unlockedAchievements);
+      const merged = [
+        ...state.unlockedAchievements,
+        ...incoming.filter((id) => !existing.has(id)),
+      ];
+
+      return { ...state, unlockedAchievements: merged };
+    }
+
     case ActionTypes.RESET_GAME:
       return {
         ...initialState,
@@ -299,6 +335,24 @@ export const GameProvider = ({ children }) => {
     };
   }, []);
 
+  // Evaluate and unlock achievements whenever relevant state changes
+  useEffect(() => {
+    if (state.isLoading) return;
+
+    const newAchievements = evaluateAchievements(state, state.unlockedAchievements);
+    if (newAchievements.length > 0) {
+      dispatch({ type: ActionTypes.UNLOCK_ACHIEVEMENTS, payload: newAchievements });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    state.isLoading,
+    state.completedScenarios,
+    state.statistics,
+    state.budget,
+    state.rank,
+    state.purchasedHints,
+  ]);
+
   // Save state changes to storage
   useEffect(() => {
     if (!state.isLoading) {
@@ -308,6 +362,7 @@ export const GameProvider = ({ children }) => {
         scenarioAttempts: state.scenarioAttempts,
         statistics: state.statistics,
         purchasedHints: state.purchasedHints,
+        unlockedAchievements: state.unlockedAchievements,
       };
 
       if (isFirebaseConfigured() && state.user?.uid) {
@@ -323,6 +378,7 @@ export const GameProvider = ({ children }) => {
     state.scenarioAttempts,
     state.statistics,
     state.purchasedHints,
+    state.unlockedAchievements,
     state.isLoading,
     state.user,
   ]);
@@ -385,6 +441,15 @@ export const GameProvider = ({ children }) => {
     setLeaderboard: useCallback((entries) => {
       dispatch({ type: ActionTypes.SET_LEADERBOARD, payload: entries });
     }, []),
+
+    unlockAchievements: useCallback((ids) => {
+      dispatch({ type: ActionTypes.UNLOCK_ACHIEVEMENTS, payload: ids });
+    }, []),
+
+    isAchievementUnlocked: useCallback(
+      (id) => state.unlockedAchievements.includes(id),
+      [state.unlockedAchievements]
+    ),
 
     purchaseHint: useCallback((scenarioId, hintIndex, cost) => {
       if (state.budget >= cost) {

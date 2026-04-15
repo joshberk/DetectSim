@@ -13,6 +13,7 @@ import {
   ALL_SCENARIOS,
 } from '../data/scenarios';
 import { DEFAULT_STARTER_CODE } from '../data/constants';
+import { isValidScenarioId } from '../utils/validation';
 
 export const useScenario = () => {
   const { state, actions } = useGame();
@@ -61,6 +62,9 @@ export const useScenario = () => {
   // Select a scenario
   const selectScenario = useCallback(
     (scenarioId) => {
+      if (!isValidScenarioId(scenarioId)) {
+        return false;
+      }
       const scenario = getScenarioById(scenarioId);
       if (scenario) {
         // Check if level is unlocked

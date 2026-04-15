@@ -18,8 +18,6 @@ const ALLOWED_ATTR = [
   'data-testid', 'aria-label', 'role'
 ];
 
-const ALLOWED_URI_REGEXP = /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i;
-
 /**
  * Sanitize HTML string for safe rendering
  * @param {string} dirty - Untrusted HTML string
@@ -33,7 +31,7 @@ export const sanitizeHTML = (dirty) => {
   return DOMPurify.sanitize(dirty, {
     ALLOWED_TAGS,
     ALLOWED_ATTR,
-    ALLOWED_URI_REGEXP,
+    ALLOWED_PROTOCOLS: ['http', 'https', 'mailto', 'tel'],
     ALLOW_DATA_ATTR: false,
     ADD_ATTR: ['target'],
     FORBID_TAGS: ['script', 'style', 'iframe', 'form', 'input', 'object', 'embed'],

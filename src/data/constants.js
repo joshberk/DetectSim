@@ -139,6 +139,9 @@ export const VIEWS = {
   LANDING: 'landing',
   DASHBOARD: 'dashboard',
   WORKSPACE: 'workspace',
+  STATISTICS: 'statistics',
+  LEADERBOARD: 'leaderboard',
+  ACHIEVEMENTS: 'achievements',
 };
 
 // Severity levels for logs

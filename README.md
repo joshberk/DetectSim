@@ -38,12 +38,6 @@ The rule syntax follows Sigma — the open standard used by real SOC teams. If y
 
 ---
 
-## Stack
-
-React 18, Vite, Tailwind CSS, Firebase (Firestore + anonymous auth), CodeMirror 6, DOMPurify. Runs entirely in the browser — Firebase is optional, everything falls back to localStorage.
-
----
-
 ## Running it locally
 
 You need **Node.js 18 or higher**. Check with `node -v` if you're not sure.

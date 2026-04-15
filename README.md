@@ -1,127 +1,132 @@
 # DetectSim
 
-> Master the art of the Blue Team.
+Most security training puts you on offense — exploit this box, crack that hash. DetectSim flips it. You're the analyst on the other side, staring at a live log stream, trying to write a rule that catches the attacker without nuking your alert queue with noise.
 
-A gamified "Cyber Range" where you learn to write high-fidelity detection rules, hunt threats, and avoid false positives.
+It's a browser-based detection engineering playground built around [Sigma](https://sigmahq.io/) rules. Think of it as a coding challenge platform, but for Blue Team.
 
-## About The Project
+---
 
-DetectSim bridges the gap between theoretical cybersecurity knowledge and practical application. While most CTFs focus on breaking things (Red Team), this platform focuses on catching the breakers (Blue Team).
+## What it actually is
 
-Players act as SOC Analysts investigating real-world scenarios. The goal isn't just to find the "evil" log—it's to write a Sigma-style detection rule that catches the attacker without flagging legitimate user activity (False Positives).
+You get an incident briefing, a stream of logs (some malicious, most benign), and an editor. Your job is to write a detection rule that catches the bad stuff without triggering on the legitimate activity. Hit "Deploy" and the engine runs your rule against the full log set in real time.
 
-## Key Features
+Get it right and you earn budget, climb the rank ladder, and unlock harder scenarios. Flag the CEO's PowerShell or miss the C2 beacon and you pay for it.
 
-- **Simulated SIEM Interface**: Toggle between parsed JSON objects and raw Syslog strings to simulate real-world analysis
-- **Custom Sigma Parser**: An in-browser YAML detection engine supporting selection, condition, and list-based logic with full regex support
-- **50 Detection Scenarios**: Across 3 difficulty levels (Junior, Intermediate, Advanced)
-- **MITRE ATT&CK Mapping**: Every scenario maps to real-world tactics and techniques
-- **Real-World References**: Learn from actual incidents (Emotet, SolarWinds, Log4Shell, etc.)
+The rule syntax follows Sigma — the open standard used by real SOC teams. If you've never written a Sigma rule before, that's the point. You'll pick it up fast.
 
-### Accuracy Mechanics
+---
 
-- **True Positives**: Catching the malware earns budget
-- **False Positives**: Flagging the CEO's benign PowerShell script deducts points
-- **Missed Attacks**: Letting threats slip through damages reputation
+## Features
 
-### Progression System
+**50 scenarios across 3 difficulty tiers** — Junior scenarios focus on single obvious indicators (encoded PowerShell, suspicious process names). Intermediate introduces evasion and false positive traps. Advanced gets into multi-stage attacks and correlation logic.
 
-- **Career Ranks**: Progress from Intern to CISO based on cases solved and accuracy
-- **Economy System**: Earn "Budget" to unlock tiered hints (Basic → Advanced → Solution)
-- **Failure Consequences**: Poor detections cost budget and limit attempts
+**Custom Sigma parser running entirely in-browser** — supports `contains`, `endswith`, `startswith`, `re` (regex with ReDoS protection), `base64`, `cidr`, `gt/gte/lt/lte`, and list-based OR logic. No backend needed.
 
-## Tech Stack
+**CodeMirror editor** — proper YAML syntax highlighting, line numbers, bracket matching. Writing detection rules in a plain textarea felt wrong so it got replaced.
 
-| Layer | Technology |
-|-------|------------|
-| Frontend | React 18 + Vite |
-| Styling | Tailwind CSS (Dark mode) |
-| Icons | Lucide React |
-| Security | DOMPurify (XSS prevention) |
-| Backend | Firebase Firestore & Anonymous Auth |
-| Fallback | localStorage (offline support) |
+**MITRE ATT&CK coverage heatmap** — the Statistics page shows which tactics you've covered across all 50 scenarios. Each tile fills in as you complete scenarios in that tactic category.
 
-## Getting Started
+**Economy system** — you start with a budget and spend it on hints (tiered: nudge → detailed hint → full solution). False positives and missed attacks cost budget. It makes you think twice before deploying a noisy rule.
 
-### Prerequisites
+**Rank progression** — Junior Analyst → Analyst → Senior Analyst → Detection Engineer → Senior Engineer → Principal Engineer. Rank gates are based on cases solved, accuracy, and budget earned.
 
-- Node.js 18+ & npm
-- A Firebase Project (optional, works offline with localStorage)
+**Achievement system** — 24 achievements across categories like accuracy milestones, speed runs, and streaks. They fire as toasts and are tracked in a dedicated view.
 
-### Installation
+**Rank-up ceremony** — when you hit a new rank a full-screen overlay fires with an animated badge reveal. Small thing but it feels good.
+
+**Leaderboard** — score tracking with Firebase sync (or localStorage if you're running offline).
+
+---
+
+## Stack
+
+React 18, Vite, Tailwind CSS, Firebase (Firestore + anonymous auth), CodeMirror 6, DOMPurify. Runs entirely in the browser — Firebase is optional, everything falls back to localStorage.
+
+---
+
+## Running it locally
+
+You need **Node.js 18 or higher**. Check with `node -v` if you're not sure.
 
 ```bash
-# Clone the repository
-git clone https://github.com/joshberk/DetectSim.git
+git clone https://github.com/yourusername/DetectSim.git
 cd DetectSim
-
-# Install dependencies
 npm install
-
-# Start development server
 npm run dev
 ```
 
-### Firebase Configuration (Optional)
+Open **http://localhost:3000** in your browser. That's all — no database, no accounts, no API keys required to get started. Progress is saved to `localStorage` so it survives page refreshes.
 
-Create a `.env` file in the root directory:
+### Firebase setup (optional)
+
+Without Firebase you lose the leaderboard and cross-device sync, but everything else works fine. If you want those features:
+
+1. Create a project at [console.firebase.google.com](https://console.firebase.google.com)
+2. Add a Web app — Firebase will show you the config object
+3. Enable **Firestore** (start in test mode is fine) and **Anonymous Authentication** under Authentication → Sign-in methods
+4. Create a `.env.local` file in the project root and paste your values:
 
 ```env
-VITE_FIREBASE_API_KEY=your_api_key
-VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=your_project_id
-VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
-VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-VITE_FIREBASE_APP_ID=your_app_id
+VITE_FIREBASE_API_KEY=AIza...
+VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your-project-id
+VITE_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
+VITE_FIREBASE_MESSAGING_SENDER_ID=123456789
+VITE_FIREBASE_APP_ID=1:123456789:web:abc123
 ```
 
-## How to Play
+Restart the dev server after adding the file.
 
-1. **Briefing**: Read the Incident Report and understand the threat
-2. **Analysis**: Scan the Log Stream. Look for suspicious binaries (`whoami.exe`, `vssadmin.exe`) or flags (`-EncodedCommand`)
-3. **Engineering**: Write a detection rule in the Editor
+### Building for production
+
+```bash
+npm run build       # outputs to /dist
+npm run preview     # serves the build locally to check it before deploying
+```
+
+The build is a fully static bundle — drop the `/dist` folder on any static host (Vercel, Netlify, GitHub Pages, S3, etc.).
+
+---
+
+## Writing rules
+
+The editor uses a subset of Sigma syntax focused on the `detection` block:
 
 ```yaml
 detection:
   selection:
     Image|endswith: 'powershell.exe'
-    CommandLine|contains: '-enc'
+    CommandLine|contains|all:
+      - '-enc'
+      - '-nop'
   condition: selection
 ```
 
-4. **Deploy**: Click "Deploy Rule." If your logic catches threats without false positives, you earn Budget and rank up
+Multiple values in a list are OR'd together by default. Use `|all` to require all of them. Combine selections with `and`, `or`, `not` in the condition. That covers most real-world detection logic.
 
-### Supported Sigma Modifiers
+---
 
-| Modifier | Description |
-|----------|-------------|
-| `contains` | Substring match (case-insensitive) |
-| `endswith` | Suffix match |
-| `startswith` | Prefix match |
-| `re` | Regular expression pattern |
-| `base64` | Base64-encoded value match |
-| `cidr` | IP range matching |
+## Scenario breakdown
 
-## Scenario Levels
+| Level | Name | Count | What you're dealing with |
+|-------|------|-------|--------------------------|
+| 1 | Junior Analyst | 17 | Encoded commands, suspicious binaries, brute force patterns |
+| 2 | Intermediate | 17 | Evasion, legitimate tool abuse (LOLBins), FP traps |
+| 3 | Advanced | 16 | Multi-stage attacks, lateral movement, credential theft chains |
 
-| Level | Difficulty | Scenarios | Focus |
-|-------|------------|-----------|-------|
-| 1 | Junior | 17 | Single indicators, basic patterns |
-| 2 | Intermediate | 17 | Multiple conditions, evasion techniques |
-| 3 | Advanced | 16 | Multi-stage attacks, correlation |
+Every scenario maps to a real MITRE ATT&CK technique and references actual incidents where relevant (Emotet, SolarWinds, Log4Shell, etc.).
 
-## Roadmap
+---
 
-- [x] Custom Sigma Parser with modifiers
-- [x] Regex support with ReDoS protection
-- [x] 50 detection scenarios with MITRE mapping
-- [x] Career progression and economy system
-- [x] Persistence (Firebase + localStorage fallback)
-- [ ] Global Leaderboard with Firebase sync
-- [ ] Network Logs: Firewall & PCAP analysis scenarios
-- [ ] Multi-stage Attacks: Correlation across multiple log sources
-- [ ] Custom scenario builder
+## What's next
+
+- [ ] Multi-source correlation — writing rules that span process + network + registry logs
+- [ ] Custom scenario builder — let users author and share their own log sets
+- [ ] Network/PCAP scenarios — firewall logs, DNS tunneling, beaconing patterns
+- [ ] Multiplayer — race another analyst to the correct rule
+
+---
 
 ## License
 
-Distributed under the MIT License. See `LICENSE` for more information.
+MIT

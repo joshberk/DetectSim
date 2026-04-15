@@ -159,3 +159,128 @@ button:disabled {
   background: linear-gradient(90deg, rgba(239, 68, 68, 0.2) 0%, transparent 100%);
   border-left-color: #ef4444;
 }
+
+/* ─── Scanline CRT Overlay ─────────────────────────────────────────────────── */
+.scanline-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  overflow: hidden;
+}
+
+/* Moving horizontal beam */
+.scanline-overlay::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(16, 185, 129, 0.06) 50%,
+    transparent 100%
+  );
+  animation: scanline 8s linear infinite;
+}
+
+/* Static CRT line grid */
+.scanline-overlay::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+}
+
+/* ─── Glass Morphism Card ──────────────────────────────────────────────────── */
+.glass-card {
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+/* ─── Shimmer Skeleton ─────────────────────────────────────────────────────── */
+.shimmer-bg {
+  background: linear-gradient(
+    90deg,
+    rgba(30, 41, 59, 0) 0%,
+    rgba(45, 63, 85, 0.6) 50%,
+    rgba(30, 41, 59, 0) 100%
+  );
+  background-size: 400px 100%;
+  animation: shimmer 1.6s infinite;
+}
+
+/* ─── Glitch Title Pseudo-layers ───────────────────────────────────────────── */
+.glitch-title {
+  position: relative;
+}
+
+.glitch-title::before,
+.glitch-title::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.glitch-title::before {
+  color: rgba(16, 185, 129, 0.7);
+  left: -2px;
+  text-shadow: 2px 0 rgba(239, 68, 68, 0.5);
+  clip-path: inset(0 0 60% 0);
+  animation: glitch 3s infinite 0.1s;
+}
+
+.glitch-title::after {
+  color: rgba(59, 130, 246, 0.7);
+  left: 2px;
+  text-shadow: -2px 0 rgba(16, 185, 129, 0.5);
+  clip-path: inset(50% 0 0 0);
+  animation: glitch 3s infinite 0.05s;
+}
+
+/* ─── Count-up number flash ────────────────────────────────────────────────── */
+.count-up {
+  animation: fade-in 0.6s ease-out;
+}
+
+/* ─── Scenario card glow on hover ──────────────────────────────────────────── */
+.scenario-card-l1:hover {
+  box-shadow: 0 0 16px rgba(59, 130, 246, 0.25);
+}
+
+.scenario-card-l2:hover {
+  box-shadow: 0 0 16px rgba(139, 92, 246, 0.25);
+}
+
+.scenario-card-l3:hover {
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.25);
+}
+
+/* ─── Log flash on detection ───────────────────────────────────────────────── */
+@keyframes flash-new-tp {
+  0%   { background-color: rgba(16, 185, 129, 0.5); transform: scaleX(1.01); }
+  100% { background-color: rgba(16, 185, 129, 0.2); transform: scaleX(1); }
+}
+
+@keyframes flash-new-fp {
+  0%   { background-color: rgba(239, 68, 68, 0.5); transform: scaleX(1.01); }
+  100% { background-color: rgba(239, 68, 68, 0.1); transform: scaleX(1); }
+}
+
+.animate-flash-new-tp {
+  animation: flash-new-tp 0.6s ease-out forwards;
+}
+
+.animate-flash-new-fp {
+  animation: flash-new-fp 0.6s ease-out forwards;
+}

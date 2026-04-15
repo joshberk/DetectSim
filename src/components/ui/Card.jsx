@@ -13,6 +13,8 @@ export const Card = ({
   headerColor = 'emerald',
   footer,
   noPadding = false,
+  glass = false,
+  glow,
   ...props
 }) => {
   const headerColors = {
@@ -24,9 +26,23 @@ export const Card = ({
     gray: 'text-gray-400',
   };
 
+  const glowClasses = {
+    green:  'shadow-glow-green',
+    blue:   'shadow-glow-blue',
+    purple: 'shadow-glow-purple',
+    red:    'shadow-glow-red',
+    yellow: 'shadow-glow-yellow',
+  };
+
+  const baseClass = glass
+    ? 'glass-card'
+    : 'bg-gray-800 border border-gray-700';
+
+  const glowClass = glow ? (glowClasses[glow] ?? '') : '';
+
   return (
     <div
-      className={`bg-gray-800 border border-gray-700 rounded-xl shadow-2xl relative overflow-hidden ${className}`}
+      className={`${baseClass} rounded-xl shadow-2xl relative overflow-hidden ${glowClass} ${className}`}
       {...props}
     >
       {/* Top gradient line */}

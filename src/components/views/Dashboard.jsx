@@ -178,15 +178,23 @@ export const Dashboard = () => {
                             disabled={!isUnlocked}
                             onClick={() => selectScenario(scenario.id)}
                             className={`
-                              w-full text-left p-3 rounded-lg border transition-all flex justify-between items-center group
+                              w-full text-left p-3 rounded-lg border transition-all duration-200 flex justify-between items-center group
                               ${
                                 !isUnlocked
                                   ? 'bg-gray-900 border-gray-800 text-gray-600 cursor-not-allowed opacity-60'
-                                  : 'bg-gray-700/50 border-gray-600 hover:border-emerald-500 hover:bg-gray-700 text-gray-200 cursor-pointer'
+                                  : levelConfig.level === 1
+                                  ? 'bg-gray-700/50 border-gray-600 hover:border-blue-500/70 hover:bg-gray-700 text-gray-200 cursor-pointer scenario-card-l1'
+                                  : levelConfig.level === 2
+                                  ? 'bg-gray-700/50 border-gray-600 hover:border-purple-500/70 hover:bg-gray-700 text-gray-200 cursor-pointer scenario-card-l2'
+                                  : 'bg-gray-700/50 border-gray-600 hover:border-red-500/70 hover:bg-gray-700 text-gray-200 cursor-pointer scenario-card-l3'
                               }
                               ${
                                 scenario.isCompleted
-                                  ? 'border-emerald-500/50 bg-emerald-900/10'
+                                  ? levelConfig.level === 1
+                                    ? 'border-blue-500/40 bg-blue-900/10'
+                                    : levelConfig.level === 2
+                                    ? 'border-purple-500/40 bg-purple-900/10'
+                                    : 'border-red-500/40 bg-red-900/10'
                                   : ''
                               }
                             `}

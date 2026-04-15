@@ -9,19 +9,19 @@ import {
   ArrowLeft,
   Target,
   TrendingUp,
-  AlertTriangle,
   CheckCircle,
-  XCircle,
   Award,
   BarChart2,
   Zap,
   Shield,
   ChevronRight,
+  Map as MapIcon,
 } from 'lucide-react';
 import { useGame } from '../../context/GameContext';
 import { Card, Badge, ProgressBar } from '../ui';
 import { RANKS, getNextRankRequirements } from '../../utils/scoring';
 import { ACHIEVEMENTS_BY_ID } from '../../data/achievements';
+import { ALL_SCENARIOS } from '../../data/scenarios';
 
 // ─── Mini Components ─────────────────────────────────────────────────────────
 
@@ -87,6 +87,99 @@ const AccuracyRing = ({ accuracy }) => {
   );
 };
 
+// ─── MITRE Heatmap Cell ───────────────────────────────────────────────────────
+const TACTIC_COLORS = {
+  'Reconnaissance':      { bg: 'bg-slate-700/60',   border: 'border-slate-500/40',   fill: '#64748b' },
+  'Resource Development':{ bg: 'bg-slate-700/60',   border: 'border-slate-500/40',   fill: '#64748b' },
+  'Initial Access':      { bg: 'bg-orange-900/40',  border: 'border-orange-600/40',  fill: '#f97316' },
+  'Execution':           { bg: 'bg-red-900/40',     border: 'border-red-600/40',     fill: '#ef4444' },
+  'Persistence':         { bg: 'bg-yellow-900/40',  border: 'border-yellow-600/40',  fill: '#eab308' },
+  'Privilege Escalation':{ bg: 'bg-purple-900/40',  border: 'border-purple-600/40',  fill: '#8b5cf6' },
+  'Defense Evasion':     { bg: 'bg-pink-900/40',    border: 'border-pink-600/40',    fill: '#ec4899' },
+  'Credential Access':   { bg: 'bg-rose-900/40',    border: 'border-rose-600/40',    fill: '#f43f5e' },
+  'Discovery':           { bg: 'bg-blue-900/40',    border: 'border-blue-600/40',    fill: '#3b82f6' },
+  'Lateral Movement':    { bg: 'bg-cyan-900/40',    border: 'border-cyan-600/40',    fill: '#06b6d4' },
+  'Collection':          { bg: 'bg-teal-900/40',    border: 'border-teal-600/40',    fill: '#14b8a6' },
+  'Command and Control': { bg: 'bg-emerald-900/40', border: 'border-emerald-600/40', fill: '#10b981' },
+  'Exfiltration':        { bg: 'bg-lime-900/40',    border: 'border-lime-600/40',    fill: '#84cc16' },
+  'Impact':              { bg: 'bg-red-950/60',     border: 'border-red-700/50',     fill: '#dc2626' },
+};
+
+const HeatCell = ({ tactic, total, completed, pct }) => {
+  const colors = TACTIC_COLORS[tactic] ?? {
+    bg: 'bg-gray-800/60',
+    border: 'border-gray-600/40',
+    fill: '#6b7280',
+  };
+  const opacity = completed > 0 ? Math.max(0.3, pct / 100) : 0.15;
+
+  return (
+    <div
+      className={`relative p-3 rounded-lg border ${colors.bg} ${colors.border} overflow-hidden group cursor-default`}
+      title={`${tactic}: ${completed}/${total} completed`}
+    >
+      {/* Background fill intensity */}
+      <div
+        className="absolute inset-0 transition-all duration-700"
+        style={{
+          background: colors.fill,
+          opacity: opacity * 0.25,
+        }}
+        aria-hidden="true"
+      />
+
+      {/* Left accent bar */}
+      <div
+        className="absolute left-0 top-0 bottom-0 w-1 transition-all duration-700"
+        style={{
+          background: colors.fill,
+          opacity: completed > 0 ? 0.8 : 0.2,
+        }}
+        aria-hidden="true"
+      />
+
+      <div className="relative">
+        {/* Tactic name */}
+        <div className="text-xs font-bold text-gray-300 leading-tight mb-2 pr-6 truncate">
+          {tactic}
+        </div>
+
+        {/* Mini progress bar */}
+        <div className="h-1 bg-gray-700 rounded-full overflow-hidden mb-1.5">
+          <div
+            className="h-full rounded-full transition-all duration-700"
+            style={{
+              width: `${pct}%`,
+              backgroundColor: colors.fill,
+            }}
+          />
+        </div>
+
+        {/* Count */}
+        <div className="flex justify-between items-baseline">
+          <span
+            className="text-lg font-black font-mono leading-none"
+            style={{ color: completed > 0 ? colors.fill : '#374151' }}
+          >
+            {completed}
+          </span>
+          <span className="text-[10px] text-gray-600 font-mono">/{total}</span>
+        </div>
+      </div>
+
+      {/* % badge top-right */}
+      {completed > 0 && (
+        <div
+          className="absolute top-2 right-2 text-[9px] font-bold font-mono opacity-70"
+          style={{ color: colors.fill }}
+        >
+          {pct}%
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 export const Statistics = () => {
@@ -129,6 +222,40 @@ export const Statistics = () => {
   );
 
   const currentRankIndex = RANKS.findIndex((r) => r.id === rank?.id);
+
+  // Build MITRE tactic coverage map
+  const mitreData = useMemo(() => {
+    const tacticMap = new Map();
+
+    ALL_SCENARIOS.forEach((scenario) => {
+      const tactic = scenario.mitre?.tactic;
+      if (!tactic) return;
+
+      if (!tacticMap.has(tactic)) {
+        tacticMap.set(tactic, { total: 0, completed: 0 });
+      }
+      const entry = tacticMap.get(tactic);
+      entry.total += 1;
+      if (completedScenarios.includes(scenario.id)) {
+        entry.completed += 1;
+      }
+    });
+
+    return Array.from(tacticMap.entries())
+      .map(([tactic, data]) => ({
+        tactic,
+        ...data,
+        pct: Math.round((data.completed / data.total) * 100),
+      }))
+      .sort((a, b) => {
+        // Sort: covered first, then alphabetical
+        if (b.pct !== a.pct) return b.pct - a.pct;
+        return a.tactic.localeCompare(b.tactic);
+      });
+  }, [completedScenarios]);
+
+  // Coverage summary
+  const coveredTactics = mitreData.filter((d) => d.completed > 0).length;
 
   // Recent achievements (last 6)
   const recentAchievements = useMemo(
@@ -376,7 +503,7 @@ export const Statistics = () => {
 
         {/* Recent Achievements */}
         {recentAchievements.length > 0 && (
-          <Card header="Recent Achievements" headerIcon={Award} headerColor="purple">
+          <Card header="Recent Achievements" headerIcon={Award} headerColor="purple" className="mb-6">
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {recentAchievements.map((achievement) => (
                 <div
@@ -407,6 +534,62 @@ export const Statistics = () => {
             </div>
           </Card>
         )}
+
+        {/* MITRE ATT&CK Coverage Heatmap */}
+        <Card
+          header="MITRE ATT&CK Coverage"
+          headerIcon={MapIcon}
+          headerColor="blue"
+        >
+          {/* Coverage summary */}
+          <div className="flex items-center justify-between mb-5">
+            <div className="text-sm text-gray-400">
+              Tactics covered:{' '}
+              <span className="text-white font-bold font-mono">
+                {coveredTactics}/{mitreData.length}
+              </span>
+            </div>
+            <div className="flex items-center gap-3 text-[10px] font-mono text-gray-500 uppercase tracking-wider">
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 rounded-sm bg-gray-700" />
+                Not covered
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 rounded-sm bg-emerald-500/60" />
+                Covered
+              </div>
+            </div>
+          </div>
+
+          {/* Heatmap grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+            {mitreData.map(({ tactic, total, completed, pct }) => (
+              <HeatCell
+                key={tactic}
+                tactic={tactic}
+                total={total}
+                completed={completed}
+                pct={pct}
+              />
+            ))}
+          </div>
+
+          {/* Completion bar */}
+          <div className="mt-5 pt-4 border-t border-gray-700">
+            <div className="flex justify-between text-xs mb-2">
+              <span className="text-gray-400 uppercase tracking-wide font-bold">Overall Coverage</span>
+              <span className="font-mono text-blue-400">
+                {completedScenarios.length}/{ALL_SCENARIOS.length} scenarios
+              </span>
+            </div>
+            <ProgressBar
+              value={completedScenarios.length}
+              max={ALL_SCENARIOS.length}
+              variant="info"
+              size="md"
+            />
+          </div>
+        </Card>
       </div>
     </div>
   );

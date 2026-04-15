@@ -4,7 +4,7 @@
  * Mobile: tabbed layout (Logs | Editor). Desktop: side-by-side.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ChevronRight,
   DollarSign,
@@ -28,6 +28,7 @@ import { generateRawLog } from '../../utils/logGenerator';
 import { sanitizeHTML } from '../../utils/sanitize';
 import { exportSigmaRule } from '../../utils/sigmaExport';
 import { useToast } from '../../context/ToastContext';
+import { CodeEditor } from '../CodeEditor';
 
 export const Workspace = () => {
   const { state } = useGame();
@@ -52,6 +53,9 @@ export const Workspace = () => {
   const [showHints, setShowHints] = useState(false);
   // Mobile tab: 'logs' | 'editor'
   const [mobileTab, setMobileTab] = useState('logs');
+  // Track which log IDs were just newly detected (for flash animation)
+  const [flashIds, setFlashIds] = useState(new Set());
+  const prevResultsRef = useRef(null);
 
   useEffect(() => {
     if (currentScenario?.logs) {
@@ -60,8 +64,29 @@ export const Workspace = () => {
   }, [currentScenario]);
 
   useEffect(() => {
-    if (results) {
-      setLogs(results);
+    if (!results) return;
+
+    // Always update the log display
+    setLogs(results);
+
+    // Identify newly-detected logs to flash-animate
+    const prev = prevResultsRef.current;
+    prevResultsRef.current = results;
+
+    if (prev) {
+      const prevDetected = new Set(
+        prev.filter((l) => l.detected).map((l) => l.id)
+      );
+      const newlyDetected = new Set(
+        results
+          .filter((l) => l.detected && !prevDetected.has(l.id))
+          .map((l) => l.id)
+      );
+      if (newlyDetected.size > 0) {
+        setFlashIds(newlyDetected);
+        const t = setTimeout(() => setFlashIds(new Set()), 700);
+        return () => clearTimeout(t);
+      }
     }
   }, [results]);
 
@@ -169,12 +194,16 @@ export const Workspace = () => {
               <div
                 key={log.id}
                 className={`
-                  p-2 rounded border-l-2 transition-all relative
+                  p-2 rounded border-l-2 transition-colors relative
                   ${
                     isDetected
                       ? isTruePositive
-                        ? 'bg-emerald-900/20 border-emerald-500 text-emerald-100'
-                        : 'bg-red-900/20 border-red-500 text-red-100'
+                        ? `bg-emerald-900/20 border-emerald-500 text-emerald-100${
+                            flashIds.has(log.id) ? ' animate-flash-new-tp' : ''
+                          }`
+                        : `bg-red-900/20 border-red-500 text-red-100${
+                            flashIds.has(log.id) ? ' animate-flash-new-fp' : ''
+                          }`
                       : 'border-transparent text-gray-400 hover:bg-[#151515]'
                   }
                 `}
@@ -299,16 +328,10 @@ export const Workspace = () => {
 
       {/* Code Editor */}
       <div className="flex-1 relative min-h-0">
-        <textarea
-          spellCheck="false"
+        <CodeEditor
           value={userCode}
-          onChange={(e) => setUserCode(e.target.value)}
-          className="w-full h-full bg-[#1e1e1e] text-[#d4d4d4] font-mono text-sm p-6 focus:outline-none resize-none leading-relaxed"
-          style={{
-            tabSize: 2,
-            fontFamily: "'Fira Code', 'Cascadia Code', Consolas, monospace",
-          }}
-          placeholder="# Start writing your Sigma rule here..."
+          onChange={setUserCode}
+          readOnly={false}
         />
       </div>
 

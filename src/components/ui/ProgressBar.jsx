@@ -1,9 +1,9 @@
 /**
  * ProgressBar Component
- * Visual progress indicator
+ * Visual progress indicator with mount animation.
  */
 
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 const variants = {
   default: 'from-emerald-600 to-emerald-400',
@@ -24,7 +24,20 @@ export const ProgressBar = ({
   animated = true,
   className = '',
 }) => {
-  const percentage = Math.min(100, Math.max(0, (value / max) * 100));
+  const targetPct = Math.min(100, Math.max(0, (value / max) * 100));
+  const [displayPct, setDisplayPct] = useState(0);
+  const mountedRef = useRef(false);
+
+  // Animate from 0 on first mount, then track live changes
+  useEffect(() => {
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      // Small delay so the bar is visible before it fills
+      const t = setTimeout(() => setDisplayPct(targetPct), 80);
+      return () => clearTimeout(t);
+    }
+    setDisplayPct(targetPct);
+  }, [targetPct]);
 
   const heights = {
     sm: 'h-1',
@@ -40,7 +53,7 @@ export const ProgressBar = ({
           <span className="text-gray-400 font-bold uppercase tracking-wider">
             {label || 'Progress'}
           </span>
-          <span className="text-emerald-400 font-mono">{Math.round(percentage)}%</span>
+          <span className="text-emerald-400 font-mono">{Math.round(targetPct)}%</span>
         </div>
       )}
       <div
@@ -48,9 +61,9 @@ export const ProgressBar = ({
       >
         <div
           className={`h-full bg-gradient-to-r ${variants[variant]} rounded-full ${
-            animated ? 'transition-all duration-1000' : ''
+            animated ? 'transition-all duration-1000 ease-out' : ''
           }`}
-          style={{ width: `${percentage}%` }}
+          style={{ width: `${displayPct}%` }}
         />
       </div>
     </div>

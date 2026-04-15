@@ -3,10 +3,11 @@
  * Main application routing and layout
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useGame } from './context/GameContext';
 import { Landing, Dashboard, Workspace, Statistics, Leaderboard, Achievements } from './components/views';
 import { Tutorial, shouldShowTutorial } from './components/Tutorial';
+import { RankUpCeremony } from './components/RankUpCeremony';
 import { useToast } from './context/ToastContext';
 import { ACHIEVEMENTS_BY_ID } from './data/achievements';
 
@@ -48,6 +49,8 @@ const App = () => {
   const { state } = useGame();
   const { toast } = useToast();
   const [showTutorial, setShowTutorial] = useState(false);
+  const [ceremonyRank, setCeremonyRank] = useState(null);
+  const prevRankRef = useRef(state.rank);
 
   // Show tutorial on first dashboard visit
   useEffect(() => {
@@ -58,12 +61,22 @@ const App = () => {
     }
   }, [state.currentView]);
 
+  // Detect rank-up and show ceremony
+  useEffect(() => {
+    const prev = prevRankRef.current;
+    const curr = state.rank;
+    // Both must be set, must be different IDs, and not the initial load
+    if (prev && curr && prev.id !== curr.id) {
+      setCeremonyRank(curr);
+    }
+    prevRankRef.current = curr;
+  }, [state.rank]);
+
   // Toast newly unlocked achievements
-  const prevAchievementsRef = React.useRef(state.unlockedAchievements);
+  const prevAchievementsRef = useRef(state.unlockedAchievements);
   useEffect(() => {
     const prev = new Set(prevAchievementsRef.current);
     const current = state.unlockedAchievements;
-
     current.forEach((id) => {
       if (!prev.has(id)) {
         const achievement = ACHIEVEMENTS_BY_ID[id];
@@ -74,7 +87,6 @@ const App = () => {
         }
       }
     });
-
     prevAchievementsRef.current = current;
   }, [state.unlockedAchievements, toast]);
 
@@ -87,6 +99,12 @@ const App = () => {
       <ViewRouter currentView={state.currentView} />
       {showTutorial && (
         <Tutorial onClose={() => setShowTutorial(false)} />
+      )}
+      {ceremonyRank && (
+        <RankUpCeremony
+          rank={ceremonyRank}
+          onClose={() => setCeremonyRank(null)}
+        />
       )}
     </div>
   );
